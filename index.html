@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>數獨對戰 Online</title>
+<style>
+:root {
+  --bg:#0a0a1a; --panel:#111128; --border:#2a2a4a;
+  --blue:#3a8eff; --blue-dim:#1a4a8a;
+  --red:#ff3a3a;  --red-dim:#8a1a1a;
+  --gold:#f0c040; --text:#e0e0f0; --muted:#666688;
+  --given:#c0c0d8; --cell-size:min(9.5vw,56px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',sans-serif;min-height:100vh;overflow-x:hidden;}
+.screen{display:none;}
+.screen.active{display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:16px 12px 40px;}
+
+/* LOBBY */
+.title-logo{font-size:clamp(24px,7vw,48px);font-weight:900;letter-spacing:4px;margin:32px 0 6px;
+  background:linear-gradient(135deg,var(--blue),var(--gold),var(--red));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.title-sub{color:var(--muted);font-size:12px;letter-spacing:3px;margin-bottom:32px;}
+.lobby-card{width:100%;max-width:400px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:14px;}
+.lobby-card h3{font-size:13px;letter-spacing:2px;color:var(--gold);margin-bottom:14px;}
+.name-input{width:100%;padding:10px 14px;background:#0d0d22;border:1px solid var(--border);color:var(--text);
+  font-size:15px;border-radius:4px;outline:none;margin-bottom:12px;}
+.name-input:focus{border-color:var(--blue);}
+.diff-label{font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;}
+.diff-btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;}
+.diff-btn{padding:8px 14px;border:1px solid var(--border);background:var(--panel);color:var(--text);
+  font-size:12px;cursor:pointer;border-radius:4px;transition:all .2s;letter-spacing:1px;}
+.diff-btn.active{border-color:var(--gold);color:var(--gold);background:rgba(240,192,64,.08);}
+.room-input{width:100%;padding:10px 14px;background:#0d0d22;border:1px solid var(--border);color:var(--text);
+  font-size:18px;font-weight:700;letter-spacing:6px;border-radius:4px;outline:none;margin-bottom:12px;text-align:center;text-transform:uppercase;}
+.room-input:focus{border-color:var(--gold);}
+.lobby-btn{width:100%;padding:13px;border:none;font-size:15px;font-weight:700;letter-spacing:3px;
+  cursor:pointer;border-radius:4px;transition:all .2s;margin-bottom:8px;}
+.lobby-btn.create{background:linear-gradient(135deg,var(--blue-dim),var(--blue));color:white;box-shadow:0 4px 20px rgba(58,142,255,.3);}
+.lobby-btn.join{background:linear-gradient(135deg,var(--red-dim),var(--red));color:white;box-shadow:0 4px 20px rgba(255,58,58,.3);}
+.lobby-btn:disabled{opacity:.4;cursor:not-allowed;}
+.lobby-status{font-size:13px;color:var(--muted);text-align:center;letter-spacing:1px;min-height:20px;margin-top:4px;}
+.room-code-display{font-size:28px;font-weight:900;letter-spacing:10px;color:var(--gold);text-align:center;
+  padding:16px;background:#0d0d22;border:1px solid var(--gold);border-radius:6px;margin:10px 0;}
+.waiting-dots::after{content:'';animation:dots 1.2s infinite;}
+@keyframes dots{0%{content:''}33%{content:'.'}66%{content:'..'}100%{content:'...'}}
+
+/* WAITING */
+.wait-title{font-size:22px;font-weight:700;color:var(--gold);letter-spacing:3px;margin:40px 0 10px;}
+.wait-sub{font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:24px;}
+.player-slots{display:flex;gap:12px;margin-bottom:24px;width:100%;max-width:400px;}
+.player-slot{flex:1;padding:14px 10px;background:var(--panel);border-radius:6px;text-align:center;}
+.player-slot.blue-slot{border:1px solid var(--blue);}
+.player-slot.red-slot{border:1px solid var(--red);}
+.slot-name{font-size:14px;font-weight:700;margin-bottom:4px;}
+.slot-status{font-size:11px;color:var(--muted);}
+.start-btn{padding:14px 48px;background:linear-gradient(135deg,var(--blue-dim),var(--blue));
+  color:white;border:none;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;
+  border-radius:4px;box-shadow:0 4px 20px rgba(58,142,255,.3);}
+.start-btn:disabled{opacity:.4;cursor:not-allowed;}
+.cancel-btn{padding:10px 28px;background:var(--panel);border:1px solid var(--border);color:var(--muted);
+  font-size:13px;cursor:pointer;border-radius:4px;margin-top:10px;}
+
+/* Scorebar */
+.scorebar{display:flex;justify-content:space-between;align-items:center;width:100%;max-width:520px;
+  margin-bottom:10px;padding:10px 14px;background:var(--panel);border:1px solid var(--border);border-radius:6px;}
+.score-side{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.score-name{font-size:11px;letter-spacing:2px;}
+.score-name.blue{color:var(--blue);} .score-name.red{color:var(--red);}
+.score-val{font-size:22px;font-weight:700;}
+.score-val.blue{color:var(--blue);} .score-val.red{color:var(--red);}
+.timer-box{text-align:center;}
+.timer{font-size:20px;font-weight:700;color:var(--gold);font-variant-numeric:tabular-nums;}
+.timer-label{font-size:10px;color:var(--muted);letter-spacing:1px;}
+.penalty-bar{width:100%;max-width:520px;padding:6px 14px;background:rgba(255,58,58,.07);
+  border:1px solid rgba(255,58,58,.2);border-radius:6px;margin-bottom:8px;
+  font-size:12px;color:var(--red);text-align:center;letter-spacing:1px;}
+
+/* Grid */
+.sudoku{display:grid;grid-template-columns:repeat(9,var(--cell-size));grid-template-rows:repeat(9,var(--cell-size));
+  border:2px solid #8888aa;gap:0;margin:6px 0;}
+.cell{width:var(--cell-size);height:var(--cell-size);display:flex;align-items:center;justify-content:center;
+  font-size:clamp(14px,4vw,22px);font-weight:600;border:1px solid var(--border);
+  cursor:pointer;position:relative;transition:background .15s;user-select:none;background:var(--panel);}
+.cell.given{color:var(--given);cursor:default;background:#161628;}
+.cell.player{color:var(--blue);}
+.cell.opponent{color:var(--red);}
+.cell.selected{background:rgba(58,142,255,.18)!important;outline:2px solid var(--blue);outline-offset:-2px;}
+.cell.highlight{background:rgba(58,142,255,.07);}
+.cell.error-flash{animation:errFlash .5s ease;}
+@keyframes errFlash{0%,100%{background:var(--panel)}50%{background:rgba(255,58,58,.3);}}
+.cell.bonus-flash{animation:bonusFlash .6s ease;}
+@keyframes bonusFlash{0%,100%{}50%{box-shadow:inset 0 0 12px rgba(240,192,64,.8);}}
+.cell[data-col="2"],.cell[data-col="5"]{border-right:2px solid #6060a0;}
+.cell[data-row="2"],.cell[data-row="5"]{border-bottom:2px solid #6060a0;}
+
+/* Numpad */
+.numpad{display:grid;grid-template-columns:repeat(9,1fr);gap:5px;width:100%;max-width:520px;margin:8px 0;}
+.num-btn{aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+  background:var(--panel);border:1px solid var(--border);color:var(--text);
+  font-size:clamp(14px,4vw,20px);font-weight:600;cursor:pointer;border-radius:4px;transition:all .15s;}
+.num-btn:active{background:var(--blue-dim);border-color:var(--blue);transform:scale(.95);}
+.status-bar{width:100%;max-width:520px;padding:8px 14px;background:var(--panel);
+  border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--muted);
+  text-align:center;letter-spacing:1px;min-height:32px;}
+
+/* Battle */
+.battle-title{font-size:clamp(20px,6vw,32px);font-weight:900;letter-spacing:4px;margin:20px 0 6px;color:var(--gold);}
+.battle-sub{font-size:12px;color:var(--muted);letter-spacing:2px;margin-bottom:20px;}
+.score-summary{display:flex;gap:16px;margin-bottom:20px;width:100%;max-width:480px;}
+.score-card{flex:1;padding:14px;background:var(--panel);border-radius:6px;text-align:center;}
+.score-card.blue-card{border:1px solid var(--blue);}
+.score-card.red-card{border:1px solid var(--red);}
+.score-card .sc-name{font-size:12px;letter-spacing:2px;margin-bottom:4px;}
+.score-card .sc-val{font-size:26px;font-weight:700;}
+.blue-card .sc-name,.blue-card .sc-val{color:var(--blue);}
+.red-card  .sc-name,.red-card  .sc-val{color:var(--red);}
+.regions-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;max-width:480px;margin-bottom:16px;}
+.region-card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:8px;text-align:center;transition:border-color .3s;}
+.region-card.blue-won{border-color:var(--blue);}
+.region-card.red-won{border-color:var(--red);}
+.region-card.dead{opacity:.4;}
+.region-title{font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:5px;}
+.region-num{font-size:9px;color:var(--border);margin-bottom:3px;}
+.soldier-row{display:flex;justify-content:center;gap:5px;align-items:center;}
+.soldier{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:700;border:2px solid;transition:all .3s;}
+.soldier.blue-s{background:rgba(58,142,255,.15);border-color:var(--blue);color:var(--blue);}
+.soldier.red-s{background:rgba(255,58,58,.15);border-color:var(--red);color:var(--red);}
+.soldier.gone{opacity:.2;transform:scale(.7);}
+.vs-text{font-size:9px;color:var(--muted);}
+.region-owner{font-size:10px;margin-top:4px;font-weight:700;}
+.region-owner.blue-own{color:var(--blue);}
+.region-owner.red-own{color:var(--red);}
+.combat-log{width:100%;max-width:480px;background:var(--panel);border:1px solid var(--border);
+  border-radius:6px;padding:10px;max-height:220px;overflow-y:auto;margin-bottom:16px;font-size:12px;}
+.log-round{color:var(--gold);font-weight:700;padding:6px 0 2px;border-top:1px solid var(--border);margin-top:4px;}
+.log-round:first-child{border-top:none;margin-top:0;}
+.log-entry{padding:2px 0;line-height:1.6;color:var(--text);}
+.log-entry .lb{color:var(--blue);font-weight:600;}
+.log-entry .lr{color:var(--red);font-weight:600;}
+.log-entry .lg{color:var(--gold);}
+.log-entry .lm{color:var(--muted);}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+.battle-btn{padding:11px 28px;background:var(--panel);border:1px solid var(--gold);color:var(--gold);
+  font-size:13px;letter-spacing:2px;cursor:pointer;border-radius:4px;transition:all .2s;}
+.battle-btn:hover{background:rgba(240,192,64,.1);}
+.battle-btn.primary{background:linear-gradient(135deg,rgba(58,142,255,.2),rgba(58,142,255,.35));border-color:var(--blue);color:var(--blue);}
+
+/* Result */
+.result-title{font-size:clamp(32px,10vw,64px);font-weight:900;letter-spacing:6px;margin:48px 0 12px;}
+.result-title.win{color:var(--blue);text-shadow:0 0 40px rgba(58,142,255,.6);}
+.result-title.lose{color:var(--red);text-shadow:0 0 40px rgba(255,58,58,.6);}
+.result-title.draw{color:var(--gold);}
+.result-sub{font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:32px;}
+</style>
+</head>
+<body>
+
+<!-- LOBBY -->
+<div id="screen-lobby" class="screen active">
+  <div class="title-logo">數獨對戰</div>
+  <div class="title-sub">ONLINE BATTLE</div>
+
+  <div class="lobby-card">
+    <h3>你的名稱</h3>
+    <input class="name-input" id="player-name" placeholder="輸入名稱..." maxlength="12">
+    <div class="diff-label">AI 難度（單人模式用）</div>
+    <div class="diff-btns">
+      <button class="diff-btn active" onclick="setDiff('easy',this)">初級</button>
+      <button class="diff-btn" onclick="setDiff('mid',this)">中級</button>
+      <button class="diff-btn" onclick="setDiff('hard',this)">高級</button>
+      <button class="diff-btn" onclick="setDiff('extreme',this)">極難</button>
+      <button class="diff-btn" onclick="setDiff('hell',this)">地獄</button>
+    </div>
+  </div>
+
+  <div class="lobby-card">
+    <h3>🌐 連線對戰</h3>
+    <button class="lobby-btn create" onclick="createRoom()">建立房間</button>
+    <div style="text-align:center;color:var(--muted);font-size:12px;margin:8px 0;">— 或 —</div>
+    <input class="room-input" id="join-code" placeholder="輸入房間碼" maxlength="4">
+    <button class="lobby-btn join" onclick="joinRoom()">加入房間</button>
+    <div class="lobby-status" id="lobby-status"></div>
+  </div>
+
+  <div class="lobby-card">
+    <h3>🤖 單人模式</h3>
+    <button class="lobby-btn create" style="background:linear-gradient(135deg,#2a2a4a,#3a3a6a)" onclick="startSolo()">對戰 AI</button>
+  </div>
+</div>
+
+<!-- WAITING ROOM -->
+<div id="screen-waiting" class="screen">
+  <div class="wait-title">等待對手</div>
+  <div class="wait-sub">將房間碼分享給朋友</div>
+  <div class="room-code-display" id="room-code-show">----</div>
+  <div class="player-slots">
+    <div class="player-slot blue-slot">
+      <div class="slot-name blue" id="slot-p1" style="color:var(--blue)">---</div>
+      <div class="slot-status">房主</div>
+    </div>
+    <div class="player-slot red-slot">
+      <div class="slot-name" id="slot-p2" style="color:var(--muted)">等待中<span class="waiting-dots"></span></div>
+      <div class="slot-status">對手</div>
+    </div>
+  </div>
+  <button class="start-btn" id="start-online-btn" onclick="hostStartGame()" disabled>開始對戰</button>
+  <button class="cancel-btn" onclick="cancelRoom()">取消</button>
+</div>
+
+<!-- GAME -->
+<div id="screen-game" class="screen">
+  <div class="scorebar">
+    <div class="score-side">
+      <div class="score-name blue" id="p-name-label">▶ 玩家</div>
+      <div class="score-val blue" id="p-score">0</div>
+    </div>
+    <div class="timer-box">
+      <div class="timer" id="timer">05:00</div>
+      <div class="timer-label">剩餘時間</div>
+    </div>
+    <div class="score-side">
+      <div class="score-name red" id="o-name-label">對手 ◀</div>
+      <div class="score-val red" id="a-score">0</div>
+    </div>
+  </div>
+  <div class="penalty-bar" id="penalty-bar" style="display:none"></div>
+  <div class="sudoku" id="sudoku-grid"></div>
+  <div class="numpad" id="numpad"></div>
+  <div class="status-bar" id="status-bar">選擇格子後填入數字</div>
+</div>
+
+<!-- BATTLE -->
+<div id="screen-battle" class="screen">
+  <div class="battle-title">⚔ 戰略結算</div>
+  <div class="battle-sub">數獨完成，進入士兵對戰</div>
+  <div class="score-summary">
+    <div class="score-card blue-card">
+      <div class="sc-name" id="battle-p-name">玩家得分</div>
+      <div class="sc-val" id="final-p-score">0</div>
+    </div>
+    <div class="score-card red-card">
+      <div class="sc-name" id="battle-o-name">對手得分</div>
+      <div class="sc-val" id="final-a-score">0</div>
+    </div>
+  </div>
+  <div style="font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:10px;">區域 1–9 士兵戰力</div>
+  <div class="regions-grid" id="regions-grid"></div>
+  <div class="combat-log" id="combat-log"></div>
+  <div class="btn-row">
+    <button class="battle-btn primary" id="next-btn" onclick="nextRound()">下一回合 ▶</button>
+    <button class="battle-btn" onclick="autoFinish()">自動結束</button>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div id="screen-result" class="screen">
+  <div class="result-title" id="result-title">勝利</div>
+  <div class="result-sub" id="result-sub"></div>
+  <div class="score-summary" style="max-width:320px">
+    <div class="score-card blue-card"><div class="sc-name">玩家</div><div class="sc-val" id="res-p">0</div></div>
+    <div class="score-card red-card"><div class="sc-name">對手</div><div class="sc-val" id="res-a">0</div></div>
+  </div>
+  <div class="btn-row" style="margin-top:28px">
+    <button class="battle-btn primary" onclick="goLobby()">回大廳</button>
+  </div>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, onValue, off, remove, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ── Firebase 設定 ──
+const firebaseConfig = {
+  apiKey: "AIzaSyCVVkOOTmCa0cmW13iWn9F6ZlZRSkzrGm4",
+  authDomain: "sudobatt.firebaseapp.com",
+  databaseURL: "https://sudobatt-default-rtdb.firebaseio.com",
+  projectId: "sudobatt",
+  storageBucket: "sudobatt.firebasestorage.app",
+  messagingSenderId: "297590919717",
+  appId: "1:297590919717:web:ced126293a54923ae665cc"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// ══════════════════════════════════════════
+// CONSTANTS
+// ══════════════════════════════════════════
+const AI_SPEED = { easy:10000, mid:10000, hard:10000, extreme:8000, hell:6000 };
+const REGION_NAMES = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨'];
+const REGION_LABELS = ['左上','中上','右上','左中','中央','右中','左下','中下','右下'];
+
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+let difficulty = 'easy';
+let puzzle=[], solution=[], owner=[];
+let selectedCell = null;
+let playerScore=0, opponentScore=0;
+let gameTimer=null, aiInterval=null;
+let gameSeconds=300;
+let errorCount=0, penaltyPct=0;
+let soldiers=[];
+let roundNum=0, battleDone=false;
+
+// Online state
+let myRole = null;       // 'host' | 'guest' | 'solo'
+let roomCode = null;
+let myName = '';
+let opponentName = '';
+let roomRef = null;
+let ownerListener = null;
+let gameListener = null;
+
+// ══════════════════════════════════════════
+// SCREEN
+// ══════════════════════════════════════════
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+}
+window.goLobby = function(){
+  clearAll();
+  detachListeners();
+  if(roomRef && myRole==='host') remove(roomRef);
+  roomRef=null; myRole=null; roomCode=null;
+  show('lobby');
+};
+window.setDiff = function(d,btn){
+  difficulty=d;
+  document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+};
+
+// ══════════════════════════════════════════
+// LOBBY
+// ══════════════════════════════════════════
+function getLobbyStatus(msg){ document.getElementById('lobby-status').textContent=msg; }
+
+window.createRoom = async function(){
+  myName = document.getElementById('player-name').value.trim() || '玩家一';
+  const code = Math.random().toString(36).substring(2,6).toUpperCase();
+  roomCode = code;
+  roomRef = ref(db, 'rooms/'+code);
+  await set(roomRef, {
+    host: { name:myName, score:0, ready:false },
+    guest: null,
+    difficulty,
+    status: 'waiting',
+    created: serverTimestamp()
+  });
+  myRole = 'host';
+  document.getElementById('room-code-show').textContent = code;
+  document.getElementById('slot-p1').textContent = myName;
+  document.getElementById('slot-p2').innerHTML = '等待中<span class="waiting-dots"></span>';
+  document.getElementById('start-online-btn').disabled = true;
+  show('waiting');
+  listenWaitingRoom();
+};
+
+window.joinRoom = async function(){
+  const code = document.getElementById('join-code').value.trim().toUpperCase();
+  if(code.length!==4){ getLobbyStatus('請輸入4位房間碼'); return; }
+  myName = document.getElementById('player-name').value.trim() || '玩家二';
+  const r = ref(db, 'rooms/'+code);
+  const snap = await get(r);
+  if(!snap.exists()){ getLobbyStatus('找不到此房間'); return; }
+  const data = snap.val();
+  if(data.status !== 'waiting'){ getLobbyStatus('此房間已開始或不存在'); return; }
+  if(data.guest){ getLobbyStatus('此房間已有人'); return; }
+  roomCode = code;
+  roomRef = r;
+  myRole = 'guest';
+  opponentName = data.host.name;
+  await update(roomRef, { 'guest': { name:myName, score:0, ready:false } });
+  show('waiting');
+  document.getElementById('room-code-show').textContent = code;
+  document.getElementById('slot-p1').textContent = opponentName;
+  document.getElementById('slot-p2').textContent = myName;
+  document.getElementById('slot-p2').style.color = 'var(--red)';
+  document.getElementById('start-online-btn').style.display = 'none';
+  listenGameStart();
+};
+
+window.cancelRoom = function(){
+  detachListeners();
+  if(roomRef && myRole==='host') remove(roomRef);
+  roomRef=null; myRole=null; roomCode=null;
+  show('lobby');
+};
+
+function listenWaitingRoom(){
+  ownerListener = onValue(roomRef, snap=>{
+    if(!snap.exists()) return;
+    const d = snap.val();
+    if(d.guest){
+      opponentName = d.guest.name;
+      document.getElementById('slot-p2').textContent = opponentName;
+      document.getElementById('slot-p2').style.color = 'var(--red)';
+      document.getElementById('start-online-btn').disabled = false;
+    }
+    if(d.status==='playing'){
+      off(roomRef, 'value', ownerListener);
+      loadAndStartOnlineGame(d);
+    }
+  });
+}
+
+function listenGameStart(){
+  
