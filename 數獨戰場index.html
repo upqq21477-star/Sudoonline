@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>數獨對戰</title>
+<style>
+:root {
+  --bg:#0a0a1a; --panel:#111128; --border:#2a2a4a;
+  --blue:#3a8eff; --blue-dim:#1a4a8a;
+  --red:#ff3a3a;  --red-dim:#8a1a1a;
+  --gold:#f0c040; --text:#e0e0f0; --muted:#666688;
+  --given:#c0c0d8; --cell-size:min(9.5vw,56px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',sans-serif;min-height:100vh;overflow-x:hidden;}
+
+.screen{display:none;}
+.screen.active{display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:16px 12px 40px;}
+
+/* Title */
+.title-logo{font-size:clamp(28px,8vw,52px);font-weight:900;letter-spacing:4px;margin:40px 0 8px;
+  background:linear-gradient(135deg,var(--blue),var(--gold),var(--red));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.title-sub{color:var(--muted);font-size:13px;letter-spacing:3px;margin-bottom:48px;}
+.diff-label{font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:14px;}
+.diff-btns{display:flex;gap:10px;margin-bottom:48px;}
+.diff-btn{padding:10px 22px;border:1px solid var(--border);background:var(--panel);color:var(--text);
+  font-size:14px;cursor:pointer;border-radius:4px;transition:all .2s;letter-spacing:1px;}
+.diff-btn.active{border-color:var(--gold);color:var(--gold);background:rgba(240,192,64,.08);}
+.start-btn{padding:14px 48px;background:linear-gradient(135deg,var(--blue-dim),var(--blue));
+  color:white;border:none;font-size:16px;font-weight:700;letter-spacing:4px;cursor:pointer;
+  border-radius:4px;transition:all .2s;box-shadow:0 4px 20px rgba(58,142,255,.3);}
+.start-btn:hover{transform:translateY(-2px);}
+
+/* Scorebar */
+.scorebar{display:flex;justify-content:space-between;align-items:center;width:100%;max-width:520px;
+  margin-bottom:10px;padding:10px 14px;background:var(--panel);border:1px solid var(--border);border-radius:6px;}
+.score-side{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.score-name{font-size:11px;letter-spacing:2px;}
+.score-name.blue{color:var(--blue);} .score-name.red{color:var(--red);}
+.score-val{font-size:22px;font-weight:700;}
+.score-val.blue{color:var(--blue);} .score-val.red{color:var(--red);}
+.timer-box{text-align:center;}
+.timer{font-size:20px;font-weight:700;color:var(--gold);font-variant-numeric:tabular-nums;}
+.timer-label{font-size:10px;color:var(--muted);letter-spacing:1px;}
+
+/* Penalty bar */
+.penalty-bar{width:100%;max-width:520px;padding:6px 14px;background:rgba(255,58,58,.07);
+  border:1px solid rgba(255,58,58,.2);border-radius:6px;margin-bottom:8px;
+  font-size:12px;color:var(--red);text-align:center;letter-spacing:1px;}
+
+/* Grid */
+.sudoku{display:grid;grid-template-columns:repeat(9,var(--cell-size));grid-template-rows:repeat(9,var(--cell-size));
+  border:2px solid #8888aa;gap:0;margin:6px 0;}
+.cell{width:var(--cell-size);height:var(--cell-size);display:flex;align-items:center;justify-content:center;
+  font-size:clamp(14px,4vw,22px);font-weight:600;border:1px solid var(--border);
+  cursor:pointer;position:relative;transition:background .15s;user-select:none;background:var(--panel);}
+.cell.given{color:var(--given);cursor:default;background:#161628;}
+.cell.player{color:var(--blue);}
+.cell.ai{color:var(--red);}
+.cell.selected{background:rgba(58,142,255,.18)!important;outline:2px solid var(--blue);outline-offset:-2px;}
+.cell.highlight{background:rgba(58,142,255,.07);}
+.cell.error-flash{animation:errFlash .5s ease;}
+@keyframes errFlash{0%,100%{background:var(--panel)}50%{background:rgba(255,58,58,.3);}}
+.cell.bonus-flash{animation:bonusFlash .6s ease;}
+@keyframes bonusFlash{0%,100%{}50%{box-shadow:inset 0 0 12px rgba(240,192,64,.8);}}
+.cell[data-col="2"],.cell[data-col="5"]{border-right:2px solid #6060a0;}
+.cell[data-row="2"],.cell[data-row="5"]{border-bottom:2px solid #6060a0;}
+
+/* Numpad */
+.numpad{display:grid;grid-template-columns:repeat(9,1fr);gap:5px;width:100%;max-width:520px;margin:8px 0;}
+.num-btn{aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+  background:var(--panel);border:1px solid var(--border);color:var(--text);
+  font-size:clamp(14px,4vw,20px);font-weight:600;cursor:pointer;border-radius:4px;transition:all .15s;}
+.num-btn:active{background:var(--blue-dim);border-color:var(--blue);transform:scale(.95);}
+
+.status-bar{width:100%;max-width:520px;padding:8px 14px;background:var(--panel);
+  border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--muted);
+  text-align:center;letter-spacing:1px;min-height:32px;}
+
+/* Battle */
+.battle-title{font-size:clamp(20px,6vw,32px);font-weight:900;letter-spacing:4px;margin:20px 0 6px;color:var(--gold);}
+.battle-sub{font-size:12px;color:var(--muted);letter-spacing:2px;margin-bottom:20px;}
+.score-summary{display:flex;gap:16px;margin-bottom:20px;width:100%;max-width:480px;}
+.score-card{flex:1;padding:14px;background:var(--panel);border-radius:6px;text-align:center;}
+.score-card.blue-card{border:1px solid var(--blue);}
+.score-card.red-card{border:1px solid var(--red);}
+.score-card .sc-name{font-size:12px;letter-spacing:2px;margin-bottom:4px;}
+.score-card .sc-val{font-size:26px;font-weight:700;}
+.blue-card .sc-name,.blue-card .sc-val{color:var(--blue);}
+.red-card  .sc-name,.red-card  .sc-val{color:var(--red);}
+
+/* Regions 3x3 */
+.regions-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;max-width:480px;margin-bottom:16px;}
+.region-card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:8px;text-align:center;transition:border-color .3s;}
+.region-card.blue-won{border-color:var(--blue);}
+.region-card.red-won{border-color:var(--red);}
+.region-card.dead{opacity:.4;}
+.region-title{font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:5px;}
+.region-num{font-size:9px;color:var(--border);margin-bottom:3px;}
+.soldier-row{display:flex;justify-content:center;gap:5px;align-items:center;}
+.soldier{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:700;border:2px solid;transition:all .3s;}
+.soldier.blue-s{background:rgba(58,142,255,.15);border-color:var(--blue);color:var(--blue);}
+.soldier.red-s{background:rgba(255,58,58,.15);border-color:var(--red);color:var(--red);}
+.soldier.gone{opacity:.2;transform:scale(.7);}
+.vs-text{font-size:9px;color:var(--muted);}
+.region-owner{font-size:10px;margin-top:4px;font-weight:700;}
+.region-owner.blue-own{color:var(--blue);}
+.region-owner.red-own{color:var(--red);}
+
+/* Combat log */
+.combat-log{width:100%;max-width:480px;background:var(--panel);border:1px solid var(--border);
+  border-radius:6px;padding:10px;max-height:220px;overflow-y:auto;margin-bottom:16px;font-size:12px;}
+.log-round{color:var(--gold);font-weight:700;padding:6px 0 2px;border-top:1px solid var(--border);margin-top:4px;}
+.log-round:first-child{border-top:none;margin-top:0;}
+.log-entry{padding:2px 0;line-height:1.6;color:var(--text);}
+.log-entry .lb{color:var(--blue);font-weight:600;}
+.log-entry .lr{color:var(--red);font-weight:600;}
+.log-entry .lg{color:var(--gold);}
+.log-entry .lm{color:var(--muted);}
+
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+.battle-btn{padding:11px 28px;background:var(--panel);border:1px solid var(--gold);color:var(--gold);
+  font-size:13px;letter-spacing:2px;cursor:pointer;border-radius:4px;transition:all .2s;}
+.battle-btn:hover{background:rgba(240,192,64,.1);}
+.battle-btn.primary{background:linear-gradient(135deg,rgba(58,142,255,.2),rgba(58,142,255,.35));border-color:var(--blue);color:var(--blue);}
+
+/* Result */
+.result-title{font-size:clamp(32px,10vw,64px);font-weight:900;letter-spacing:6px;margin:48px 0 12px;}
+.result-title.win{color:var(--blue);text-shadow:0 0 40px rgba(58,142,255,.6);}
+.result-title.lose{color:var(--red);text-shadow:0 0 40px rgba(255,58,58,.6);}
+.result-title.draw{color:var(--gold);}
+.result-sub{font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:32px;}
+
+/* ─── SKILL ZONE ─── */
+.skill-zone{width:100%;max-width:520px;margin:5px 0 2px;}
+.skill-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.skill-hdr-label{font-size:9px;color:var(--muted);letter-spacing:2px;}
+.skill-cd{font-size:10px;color:var(--gold);}
+.skill-row{display:flex;gap:6px;}
+.skill-mine,.skill-opp{flex:1;display:flex;flex-direction:column;gap:3px;}
+.skill-side-label{font-size:9px;text-align:center;letter-spacing:1px;padding-bottom:2px;}
+.skill-side-label.blue{color:var(--blue);}
+.skill-side-label.red{color:var(--red);}
+.skill-cards{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;}
+.sk{width:52px;min-height:56px;background:var(--panel);border:1.5px solid var(--border);
+  border-radius:7px;padding:4px 2px;text-align:center;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  user-select:none;transition:all .18s;}
+.sk.mine{border-color:var(--blue);box-shadow:0 0 7px rgba(58,142,255,.2);}
+.sk.mine:active{transform:scale(.92);}
+.sk.dim{opacity:.3;cursor:not-allowed;}
+.sk-icon{font-size:16px;margin-bottom:1px;}
+.sk-name{font-size:7px;letter-spacing:.3px;color:var(--gold);}
+.sk-back{width:52px;min-height:56px;background:var(--panel);
+  border:1.5px solid var(--red);border-radius:7px;
+  display:flex;align-items:center;justify-content:center;font-size:20px;user-select:none;}
+
+/* ─── PLAYED CARD ZONE ─── */
+.played-zone{width:100%;max-width:520px;display:flex;align-items:center;
+  gap:8px;margin:3px 0;min-height:32px;}
+.played-label{font-size:9px;color:var(--muted);letter-spacing:1px;white-space:nowrap;}
+.played-cards{display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
+.pk-hidden{width:36px;height:40px;background:var(--panel);border:1px solid var(--border);
+  border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+.pk-revealed{width:36px;height:40px;background:var(--panel);border-radius:5px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-size:14px;animation:flipReveal .45s ease;}
+.pk-revealed .pk-name{font-size:6px;color:var(--gold);margin-top:1px;}
+@keyframes flipReveal{0%{transform:rotateY(90deg) scale(.8);opacity:0;}100%{transform:rotateY(0deg) scale(1);opacity:1;}}
+
+/* ─── EFFECT BAR ─── */
+.effect-bar{width:100%;max-width:520px;display:flex;gap:5px;flex-wrap:wrap;min-height:4px;margin-bottom:3px;}
+.etag{font-size:9px;padding:2px 7px;border-radius:20px;border:1px solid;}
+.etag.e1{color:var(--blue);border-color:var(--blue);background:rgba(58,142,255,.1);}
+.etag.e2{color:var(--red);border-color:var(--red);background:rgba(255,58,58,.1);}
+
+/* ─── BOMB OVERLAY ─── */
+.box-ov{position:absolute;background:rgba(255,100,0,.14);border:2px solid orange;
+  cursor:pointer;z-index:10;display:flex;align-items:center;justify-content:center;
+  font-size:26px;animation:ovPulse .7s infinite;}
+@keyframes ovPulse{50%{background:rgba(255,100,0,.3);}}
+
+/* ─── TOAST ─── */
+.toast{position:fixed;top:44%;left:50%;transform:translate(-50%,-50%);
+  background:rgba(6,6,22,.97);border:2px solid var(--gold);border-radius:12px;
+  padding:16px 28px;text-align:center;z-index:700;pointer-events:none;
+  animation:toastIn .3s ease;}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,-50%) scale(.6);}to{opacity:1;transform:translate(-50%,-50%) scale(1);}}
+.toast-icon{font-size:32px;margin-bottom:4px;}
+.toast-name{font-size:14px;color:var(--gold);font-weight:700;margin-bottom:2px;}
+.toast-who{font-size:10px;color:var(--muted);}
+
+/* bomb cell mark */
+.cell.bombed::after{content:'💥';position:absolute;font-size:10px;top:0;right:0;line-height:1;pointer-events:none;}
+.cell.explode{animation:explodeF .6s ease;}
+@keyframes explodeF{0%{background:rgba(255,140,0,.9)}50%{background:rgba(255,58,58,.4)}100%{}}
+</style>
+</head>
+<body>
+
+<!-- TITLE -->
+<div id="screen-title" class="screen active">
+  <div class="title-logo">數獨對戰</div>
+  <div class="title-sub">SUDOKU BATTLE</div>
+  <div class="diff-label">選擇 AI 難度</div>
+  <div class="diff-btns">
+    <button class="diff-btn active" onclick="setDiff('easy',this)">初級</button>
+    <button class="diff-btn" onclick="setDiff('mid',this)">中級</button>
+    <button class="diff-btn" onclick="setDiff('hard',this)">高級</button>
+    <button class="diff-btn" onclick="setDiff('extreme',this)">極難</button>
+    <button class="diff-btn" onclick="setDiff('hell',this)">地獄</button>
+  </div>
+  <button class="start-btn" onclick="startGame()">開始對戰</button>
+</div>
+
+<!-- GAME -->
+<div id="screen-game" class="screen">
+  <div class="scorebar">
+    <div class="score-side">
+      <div class="score-name blue">▶ 玩家</div>
+      <div class="score-val blue" id="p-score">0</div>
+    </div>
+    <div class="timer-box">
+      <div class="timer" id="timer">05:00</div>
+      <div class="timer-label">剩餘時間</div>
+    </div>
+    <div class="score-side">
+      <div class="score-name red">AI ◀</div>
+      <div class="score-val red" id="a-score">0</div>
+    </div>
+  </div>
+  <div class="penalty-bar" id="penalty-bar" style="display:none"></div>
+  <div class="effect-bar" id="effect-bar"></div>
+  <div class="played-zone">
+    <div class="played-label">出牌：</div>
+    <div class="played-cards" id="played-cards"></div>
+  </div>
+  <div style="position:relative;">
+    <div class="sudoku" id="sudoku-grid"></div>
+  </div>
+  <div class="numpad" id="numpad"></div>
+  <div class="skill-zone">
+    <div class="skill-hdr">
+      <div class="skill-hdr-label">🃏 技能手牌</div>
+      <div class="skill-cd" id="skill-cd">下次抽牌：20s</div>
+    </div>
+    <div class="skill-row">
+      <div class="skill-mine">
+        <div class="skill-side-label blue">🔵 玩家</div>
+        <div class="skill-cards" id="hand-me"></div>
+      </div>
+      <div style="width:1px;background:var(--border);margin:0 3px;flex-shrink:0;"></div>
+      <div class="skill-opp">
+        <div class="skill-side-label red">AI 🔴</div>
+        <div class="skill-cards" id="hand-ai"></div>
+      </div>
+    </div>
+  </div>
+  <div class="status-bar" id="status-bar">選擇格子後填入數字</div>
+</div>
+
+<!-- BATTLE -->
+<div id="screen-battle" class="screen">
+  <div class="battle-title">⚔ 戰略結算</div>
+  <div class="battle-sub">數獨完成，進入士兵對戰</div>
+  <div class="score-summary">
+    <div class="score-card blue-card">
+      <div class="sc-name">玩家得分</div>
+      <div class="sc-val" id="final-p-score">0</div>
+    </div>
+    <div class="score-card red-card">
+      <div class="sc-name">AI 得分</div>
+      <div class="sc-val" id="final-a-score">0</div>
+    </div>
+  </div>
+  <div style="font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:10px;">區域 1–9 士兵戰力</div>
+  <div class="regions-grid" id="regions-grid"></div>
+  <div class="combat-log" id="combat-log"></div>
+  <div class="btn-row">
+    <button class="battle-btn primary" id="next-btn" onclick="nextRound()">下一回合 ▶</button>
+    <button class="battle-btn" onclick="autoFinish()">自動結束</button>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div id="screen-result" class="screen">
+  <div class="result-title" id="result-title">勝利</div>
+  <div class="result-sub" id="result-sub"></div>
+  <div class="score-summary" style="max-width:320px">
+    <div class="score-card blue-card"><div class="sc-name">玩家</div><div class="sc-val" id="res-p">0</div></div>
+    <div class="score-card red-card"><div class="sc-name">AI</div><div class="sc-val" id="res-a">0</div></div>
+  </div>
+  <div class="btn-row" style="margin-top:28px">
+    <button class="battle-btn primary" onclick="goTitle()">再玩一次</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// CONSTANTS & STATE
+// ══════════════════════════════════════════
+const AI_SPEED = { easy:10000, mid:8000, hard:6000, extreme:4000, hell:2500 };
+const REGION_NAMES  = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨'];
+const REGION_LABELS = ['左上','中上','右上','左中','中央','右中','左下','中下','右下'];
+const SKILLS = [
+  { id:1, icon:'✊', name:'佔有' },
+  { id:2, icon:'💣', name:'九宮爆炸' },
+  { id:3, icon:'🔄', name:'重製地圖' },
+  { id:4, icon:'🎯', name:'炸彈' },
+  { id:5, icon:'🛡', name:'技能封印' },
+  { id:6, icon:'❌', name:'誤導' },
+  { id:7, icon:'🪞', name:'反彈' },
+];
+
+let difficulty = 'easy';
+let puzzle=[], solution=[], owner=[];
+let selectedCell = null;
+let playerScore=0, aiScore=0;
+let gameTimer=null, aiInterval=null, skillTimer=null;
+let gameSeconds=300;
+let errorCount=0, penaltyPct=0;
+let soldiers=[];
+let roundNum=0, battleDone=false;
+
+// ── Skill state ──
+let hands=[[],[]];    // hands[0]=player, hands[1]=AI
+let fx=[{},{}];       // active effects: { occupy, explodeNext, mistakeNext, skillNullify, reflect }
+let playedCards=[];   // { side:0|1, skId, revealed }
+let skillCd=20;
+let targeting=null;   // { handIdx } —炸彈目標選取中
+let bombBoxes=new Set(), bombT={};
+
+// ══════════════════════════════════════════
+// SCREEN
+// ══════════════════════════════════════════
+function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById('screen-'+id).classList.add('active'); }
+function goTitle(){ clearAll(); show('title'); }
+function setDiff(d,btn){ difficulty=d; document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
+function clearAll(){
+  clearInterval(gameTimer); clearInterval(aiInterval); clearInterval(skillTimer);
+  gameTimer=aiInterval=skillTimer=null;
+  Object.values(bombT).forEach(t=>clearTimeout(t)); bombT={};
+  bombBoxes=new Set(); targeting=null; selectedCell=null;
+}
+
+// ══════════════════════════════════════════
+// SUDOKU GENERATION
+// ══════════════════════════════════════════
+function generateSudoku(){
+  const board=Array(81).fill(0);
+  fillBoard(board);
+  solution=[...board];
+  puzzle=[...board];
+  const removeCount={easy:35,mid:45,hard:55,extreme:55,hell:55}[difficulty];
+  let removed=0,tries=0;
+  while(removed<removeCount&&tries<400){ const i=Math.floor(Math.random()*81); if(puzzle[i]!==0){puzzle[i]=0;removed++;} tries++; }
+}
+function fillBoard(b){ const e=b.indexOf(0); if(e===-1)return true; for(const n of shuffle([1,2,3,4,5,6,7,8,9])){ if(isValid(b,e,n)){b[e]=n;if(fillBoard(b))return true;b[e]=0;} } return false; }
+function isValid(b,idx,n){ const r=Math.floor(idx/9),c=idx%9; for(let i=0;i<9;i++){if(b[r*9+i]===n||b[i*9+c]===n)return false;} const br=Math.floor(r/3)*3,bc=Math.floor(c/3)*3; for(let dr=0;dr<3;dr++)for(let dc=0;dc<3;dc++)if(b[(br+dr)*9+(bc+dc)]===n)return false; return true; }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+// ══════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════
+function renderGrid(){
+  const grid=document.getElementById('sudoku-grid'); grid.innerHTML='';
+  for(let i=0;i<81;i++){
+    const r=Math.floor(i/9),c=i%9;
+    const el=document.createElement('div');
+    el.className='cell'; el.dataset.idx=i; el.dataset.row=r; el.dataset.col=c;
+    if(puzzle[i]!==0){ el.classList.add('given'); el.textContent=puzzle[i]; owner[i]=0; }
+    else{ owner[i]=0; el.addEventListener('click',()=>selectCell(i)); }
+    grid.appendChild(el);
+  }
+}
+function renderNumpad(){
+  const pad=document.getElementById('numpad'); pad.innerHTML='';
+  for(let n=1;n<=9;n++){ const b=document.createElement('button'); b.className='num-btn'; b.textContent=n; b.addEventListener('click',()=>playerInput(n)); pad.appendChild(b); }
+}
+function selectCell(idx){
+  if(targeting)return;
+  if(puzzle[idx]!==0||owner[idx]===2)return;
+  selectedCell=idx;
+  document.querySelectorAll('.cell').forEach(c=>{
+    c.classList.remove('selected','highlight');
+    const ci=+c.dataset.idx,cr=Math.floor(ci/9),cc=ci%9,ir=Math.floor(idx/9),ic=idx%9;
+    const sameBox=Math.floor(cr/3)===Math.floor(ir/3)&&Math.floor(cc/3)===Math.floor(ic/3);
+    if(ci===idx)c.classList.add('selected');
+    else if(cr===ir||cc===ic||sameBox)c.classList.add('highlight');
+  });
+}
+function getCellEl(idx){ return document.querySelector(`.cell[data-idx="${idx}"]`); }
+function updateCell(idx){
+  const el=getCellEl(idx); if(!el)return;
+  el.classList.remove('given','player','ai');
+  if(owner[idx]===0&&puzzle[idx]!==0){el.classList.add('given');el.textContent=puzzle[idx];}
+  else if(owner[idx]===1){el.classList.add('player');el.textContent=solution[idx];}
+  else if(owner[idx]===2){el.classList.add('ai');el.textContent=solution[idx];}
+  else el.textContent='';
+}
+
+// ══════════════════════════════════════════
+// SCORING
+// ══════════════════════════════════════════
+// 格子數值統一用開根號，顯示仍是原始數字 1-9
+function val(i){ return Math.sqrt(solution[i]); }
+
+function calcScores(){
+  let p=0,a=0;
+  for(let i=0;i<81;i++){
+    if(owner[i]===1) p+=val(i);
+    else if(owner[i]===2) a+=val(i);
+  }
+
+  // ── 賓果獎勵 ──
+  // 以每個 3×3 九宮格為單位，掃描內部 8 條線：
+  // 3 橫行、3 直列、2 斜線（各 3 格）
+  // 某條線的 3 格中，非題目格全是同一方填 → 那 3 格觸發 ×1.2 加成
+  const bingoCells={p:new Set(), a:new Set()};
+
+  function checkLine(idxArr){
+    const sources=idxArr.map(i=>{
+      if(puzzle[i]!==0) return 0;
+      if(owner[i]===1) return 1;
+      if(owner[i]===2) return 2;
+      return -1;
+    });
+    if(sources.includes(-1)) return;
+    const filled=sources.filter(s=>s!==0);
+    if(filled.length===0) return;
+    if(filled.every(s=>s===1)) idxArr.forEach(i=>bingoCells.p.add(i));
+    else if(filled.every(s=>s===2)) idxArr.forEach(i=>bingoCells.a.add(i));
+  }
+
+  for(let br=0;br<3;br++) for(let bc=0;bc<3;bc++){
+    const box=[];
+    for(let dr=0;dr<3;dr++) for(let dc=0;dc<3;dc++)
+      box.push((br*3+dr)*9+(bc*3+dc));
+    for(let dr=0;dr<3;dr++) checkLine([box[dr*3],box[dr*3+1],box[dr*3+2]]);
+    for(let dc=0;dc<3;dc++) checkLine([box[dc],box[3+dc],box[6+dc]]);
+    checkLine([box[0],box[4],box[8]]);
+    checkLine([box[2],box[4],box[6]]);
+  }
+
+
+  // 賓果加成：每個觸發格，額外 +n×0.2
+  bingoCells.p.forEach(i=>{ p+=val(i)*0.2; });
+  bingoCells.a.forEach(i=>{ a+=val(i)*0.2; });
+  if(bingoCells.p.size>0) flashCells([...bingoCells.p]);
+  if(bingoCells.a.size>0) flashCells([...bingoCells.a]);
+
+  // ── 霸榜獎勵 ──
+  // 某九宮格內，所有非題目格都是同一方填的（另一方完全沒填），
+  // 且另一方在此九宮格沒有任何格子，則此九宮格各格 ×1.1（額外+0.1）
+  const domCells={p:new Set(), a:new Set()};
+  for(let br=0;br<3;br++) for(let bc=0;bc<3;bc++){
+    const domBox=[];
+    for(let dr=0;dr<3;dr++) for(let dc=0;dc<3;dc++){
+      domBox.push((br*3+dr)*9+(bc*3+dc));
+    }
+    const playerFilled=domBox.filter(i=>owner[i]===1);
+    const aiFilled=domBox.filter(i=>owner[i]===2);
+    if(playerFilled.length>0 && aiFilled.length===0){
+      domBox.forEach(i=>domCells.p.add(i));
+    } else if(aiFilled.length>0 && playerFilled.length===0){
+      domBox.forEach(i=>domCells.a.add(i));
+    }
+  }
+  // 霸榜加成：每格（含 given）額外 +value×0.1
+  domCells.p.forEach(i=>{ p+=val(i)*0.1; });
+  domCells.a.forEach(i=>{ a+=val(i)*0.1; });
+
+  // Apply penalty
+  p=Math.round(p);
+  a=Math.round(a);
+  if(penaltyPct>0) p=Math.round(p*(1-penaltyPct/100));
+  playerScore=p; aiScore=a;
+  document.getElementById('p-score').textContent=p;
+  document.getElementById('a-score').textContent=a;
+}
+function flashCells(cells){ cells.forEach(i=>{ const el=getCellEl(i); if(el){el.classList.remove('bonus-flash');void el.offsetWidth;el.classList.add('bonus-flash');} }); }
+
+// ══════════════════════════════════════════
+// PLAYER INPUT + PENALTY
+// ══════════════════════════════════════════
+function playerInput(n){
+  if(targeting){ setStatus('請先點選炸彈目標'); return; }
+  if(selectedCell===null){setStatus('請先點選空格');return;}
+  const idx=selectedCell;
+  if(puzzle[idx]!==0){setStatus('此格無法填寫');return;}
+  // mistakeNext: forced error
+  if(fx[0].mistakeNext){ fx[0].mistakeNext=false; doPlayerError(idx); renderFx(); return; }
+  if(n!==solution[idx]){ doPlayerError(idx); return; }
+  // Correct!
+  if(fx[0].occupy){
+    fx[0].occupy=false;
+    owner[idx]=1; updateCell(idx); calcScores();
+    revealLastPlayed(0,1); setStatus('✊ 佔有！搶奪格子');
+  } else {
+    if(owner[idx]===2){ setStatus('此格已被 AI 佔有'); return; }
+    owner[idx]=1; updateCell(idx); calcScores();
+    setStatus(`✅ 填入 ${n}`);
+  }
+  if(fx[0].explodeNext){
+    fx[0].explodeNext=false;
+    triggerExplosion(cellBox(idx),0);
+    revealLastPlayed(0,2);
+  }
+  selectedCell=null;
+  aiEmptyCells=aiEmptyCells.filter(i=>i!==idx);
+  renderFx(); checkComplete();
+}
+function doPlayerError(idx){
+  errorCount++;
+  const el=getCellEl(idx);
+  el.classList.remove('error-flash');void el.offsetWidth;el.classList.add('error-flash');
+  if(errorCount>=4){
+    penaltyPct+=0.5;
+    const bar=document.getElementById('penalty-bar');
+    bar.style.display='block';
+    bar.textContent=`⚠ 錯誤 ${errorCount} 次，得分扣除 ${penaltyPct.toFixed(1)}%`;
+    setStatus(`❌ 錯誤！累計扣分`);
+  } else {
+    setStatus(`❌ 錯誤！剩餘免罰次數：${3-errorCount}`);
+  }
+}
+function setStatus(msg){ document.getElementById('status-bar').textContent=msg; }
+
+// ══════════════════════════════════════════
+// AI
+// ══════════════════════════════════════════
+let aiEmptyCells=[];
+function startAI(){
+  aiEmptyCells=[];
+  for(let i=0;i<81;i++) if(puzzle[i]===0) aiEmptyCells.push(i);
+  shuffle(aiEmptyCells);
+  const speed=AI_SPEED[difficulty];
+  aiInterval=setInterval(()=>{
+    const avail=aiEmptyCells.filter(i=>owner[i]===0);
+    if(avail.length===0){checkComplete();return;}
+    const idx=avail[Math.floor(Math.random()*avail.length)];
+    // mistakeNext: AI forced error (wasted turn)
+    if(fx[1].mistakeNext){ fx[1].mistakeNext=false; setStatus('🛡 AI 強制失誤！'); renderFx(); return; }
+    // occupy: AI can steal player's cell
+    if(fx[1].occupy){
+      fx[1].occupy=false;
+      owner[idx]=2; updateCell(idx); calcScores();
+      aiEmptyCells=aiEmptyCells.filter(i=>i!==idx);
+      revealLastPlayed(1,1); setStatus('🔴 AI 奪格！'); renderFx();
+    } else {
+      if(owner[idx]===1){ aiEmptyCells=aiEmptyCells.filter(i=>i!==idx); return; }
+      owner[idx]=2; updateCell(idx); calcScores();
+      aiEmptyCells=aiEmptyCells.filter(i=>i!==idx);
+      setStatus(`🔴 AI 填入 ${solution[idx]}`);
+    }
+    if(fx[1].explodeNext){ fx[1].explodeNext=false; triggerExplosion(cellBox(idx),1); revealLastPlayed(1,2); renderFx(); }
+    renderFx(); checkComplete();
+  },speed);
+}
+
+// ══════════════════════════════════════════
+// TIMER
+// ══════════════════════════════════════════
+function startTimer(){
+  gameSeconds=300; updateTimerDisplay();
+  gameTimer=setInterval(()=>{ gameSeconds--; updateTimerDisplay(); if(gameSeconds<=0){clearInterval(gameTimer);endGame();} },1000);
+}
+function updateTimerDisplay(){
+  const m=Math.floor(gameSeconds/60).toString().padStart(2,'0');
+  const s=(gameSeconds%60).toString().padStart(2,'0');
+  document.getElementById('timer').textContent=`${m}:${s}`;
+}
+
+// ══════════════════════════════════════════
+// GAME FLOW
+// ══════════════════════════════════════════
+function startGame(){
+  clearAll();
+  playerScore=0;aiScore=0;errorCount=0;penaltyPct=0;
+  owner=Array(81).fill(0);selectedCell=null;aiEmptyCells=[];
+  hands=[[],[]]; fx=[{},{}]; playedCards=[]; skillCd=20;
+  document.getElementById('penalty-bar').style.display='none';
+  document.getElementById('effect-bar').innerHTML='';
+  document.getElementById('played-cards').innerHTML='';
+  generateSudoku(); renderGrid(); renderNumpad(); calcScores();
+  renderHands(); renderPlayedCards(); renderFx();
+  show('game'); startTimer(); startAI(); startSkillSystem();
+  setStatus('搶先填對格子！');
+}
+function checkComplete(){
+  if(owner.filter((o,i)=>puzzle[i]===0&&o===0).length===0) endGame();
+}
+function endGame(){ clearAll(); calcScores(); buildBattle(); show('battle'); }
+
+// ══════════════════════════════════════════
+// SKILL SYSTEM
+// ══════════════════════════════════════════
+function startSkillSystem(){
+  skillCd=20; updateSkillCd(); renderHands();
+  skillTimer=setInterval(()=>{
+    if(--skillCd<=0){ skillCd=20; drawCard(0); drawCard(1); }
+    updateSkillCd();
+  },1000);
+}
+function updateSkillCd(){ const el=document.getElementById('skill-cd'); if(el)el.textContent=`下次抽牌：${skillCd}s`; }
+
+function drawCard(pIdx){
+  const sk=SKILLS[~~(Math.random()*SKILLS.length)];
+  hands[pIdx].push(sk.id);
+  if(pIdx===0) showToast(sk);
+  else setTimeout(()=>aiUseSkill(),1500+Math.random()*3000);
+  renderHands();
+}
+
+function showToast(sk){
+  const old=document.querySelector('.toast'); if(old)old.remove();
+  const t=document.createElement('div'); t.className='toast';
+  t.innerHTML=`<div class="toast-icon">${sk.icon}</div><div class="toast-name">${sk.name}</div><div class="toast-who">你抽到</div>`;
+  document.body.appendChild(t); setTimeout(()=>t.remove(),1600);
+}
+
+function renderHands(){
+  // Player: face-up, clickable
+  const mEl=document.getElementById('hand-me'); mEl.innerHTML='';
+  hands[0].forEach((sid,idx)=>{
+    const sk=SKILLS.find(s=>s.id===sid);
+    const card=document.createElement('div');
+    card.className=`sk mine${targeting!==null&&sid!==4?' dim':''}`;
+    card.innerHTML=`<div class="sk-icon">${sk.icon}</div><div class="sk-name">${sk.name}</div>`;
+    card.addEventListener('click',()=>useSkill(idx));
+    mEl.appendChild(card);
+  });
+  // AI: face-down
+  const aEl=document.getElementById('hand-ai'); aEl.innerHTML='';
+  hands[1].forEach(()=>{ const b=document.createElement('div'); b.className='sk-back'; b.textContent='🂠'; aEl.appendChild(b); });
+}
+
+function pushPlayedCard(pIdx, skId){
+  playedCards.push({ side:pIdx, skId, revealed:false });
+  if(playedCards.length>10) playedCards.shift();
+}
+function revealLastPlayed(pIdx, skId=null){
+  for(let i=playedCards.length-1;i>=0;i--){
+    const pc=playedCards[i];
+    if(pc.side===pIdx&&!pc.revealed&&(skId===null||pc.skId===skId)){ pc.revealed=true; break; }
+  }
+  renderPlayedCards();
+}
+function renderPlayedCards(){
+  const zone=document.getElementById('played-cards'); zone.innerHTML='';
+  playedCards.slice(-8).forEach(pc=>{
+    const sk=SKILLS.find(s=>s.id===pc.skId);
+    const isMe=(pc.side===0);
+    const el=document.createElement('div');
+    if(pc.revealed){
+      el.className='pk-revealed';
+      el.style.borderColor=isMe?'var(--blue)':'var(--red)';
+      el.innerHTML=`${sk.icon}<div class="pk-name">${sk.name}</div>`;
+    } else {
+      el.className='pk-hidden';
+      el.style.borderColor=isMe?'var(--blue)':'var(--red)';
+      el.textContent='🂠';
+    }
+    zone.appendChild(el);
+  });
+}
+
+function renderFx(){
+  const bar=document.getElementById('effect-bar'); if(!bar)return;
+  bar.innerHTML='';
+  const add=(label,cls)=>{ const t=document.createElement('div'); t.className='etag '+cls; t.textContent=label; bar.appendChild(t); };
+  if(fx[0].occupy)       add('✊玩家佔有','e1');
+  if(fx[0].explodeNext)  add('💣玩家爆炸','e1');
+  if(fx[0].skillNullify) add('🛡玩家封印','e1');
+  if(fx[0].mistakeNext)  add('❌玩家誤導','e1');
+  if(fx[0].reflect)      add('🪞玩家反彈','e1');
+  if(fx[1].occupy)       add('✊AI佔有','e2');
+  if(fx[1].explodeNext)  add('💣AI爆炸','e2');
+  if(fx[1].skillNullify) add('🛡AI封印','e2');
+  if(fx[1].mistakeNext)  add('❌AI誤導','e2');
+  if(fx[1].reflect)      add('🪞AI反彈','e2');
+}
+
+// ── Use skill (player) ──
+function useSkill(handIdx){
+  if(targeting!==null)return;
+  const sid=hands[0][handIdx];
+  const sk=SKILLS.find(s=>s.id===sid);
+  pushPlayedCard(0, sid); renderPlayedCards();
+
+  // Reflect check (AI has reflect)
+  if(fx[1].reflect){
+    fx[1].reflect=false;
+    revealLastPlayed(1,7); revealLastPlayed(0,sid);
+    applySkill(0, sid, handIdx, true);
+    renderFx(); setStatus(`🪞 反彈！${sk.name} 反作用於你！`); return;
+  }
+  // Nullify check (AI has seal)
+  if(fx[1].skillNullify){
+    fx[1].skillNullify=false;
+    revealLastPlayed(1,5); revealLastPlayed(0,sid);
+    hands[0].splice(handIdx,1);
+    renderHands(); renderFx(); renderPlayedCards();
+    setStatus(`🛡 技能被 AI 封印！${sk.name} 無效`); return;
+  }
+  // Bomb: need target selection
+  if(sid===4){ targeting={handIdx}; setStatus('🎯 點擊九宮格選擇爆炸目標…'); renderBombOverlays(); renderHands(); return; }
+
+  applySkill(0, sid, handIdx, false);
+}
+
+function applySkill(pIdx, sid, handIdx, reflected){
+  const target = reflected ? pIdx : (pIdx===0 ? 1 : 0);
+  hands[pIdx].splice(handIdx,1);
+  switch(sid){
+    case 1: fx[pIdx].occupy=true; setStatus(pIdx===0?'✊ 佔有就位，下次答對可奪格':'🔴 AI 佔有就位'); break;
+    case 2: fx[pIdx].explodeNext=true; setStatus(pIdx===0?'💣 引信就位，下次答對觸發爆炸':'🔴 AI 引信就位'); break;
+    case 3:
+      remapBoard(pIdx);
+      revealLastPlayed(pIdx,3);
+      setStatus(pIdx===0?'🔄 地圖重製！':'🔴 AI 重製地圖！'); break;
+    case 5: fx[target].skillNullify=true; setStatus(pIdx===0?'🛡 封印 AI 下一張技能':'🔴 AI 封印你下一張技能'); break;
+    case 6: fx[target].mistakeNext=true; setStatus(pIdx===0?'❌ 誤導設置，AI 下次強制失誤':'🔴 AI 誤導，你下次強制失誤'); break;
+    case 7: fx[pIdx].reflect=true; setStatus(pIdx===0?'🪞 反彈就位，AI 下一技能反打':'🔴 AI 反彈就位'); break;
+  }
+  renderHands(); renderFx();
+}
+
+function aiUseSkill(){
+  if(!hands[1].length)return;
+  const idx=~~(Math.random()*hands[1].length), sid=hands[1][idx];
+  const sk=SKILLS.find(s=>s.id===sid);
+  pushPlayedCard(1, sid); renderPlayedCards();
+
+  if(fx[0].reflect){
+    fx[0].reflect=false; revealLastPlayed(0,7); revealLastPlayed(1,sid);
+    applySkill(1,sid,idx,true); renderFx(); setStatus(`🪞 反彈！AI ${sk.name} 反打自身`); return;
+  }
+  if(fx[0].skillNullify){
+    fx[0].skillNullify=false; revealLastPlayed(0,5); revealLastPlayed(1,sid);
+    hands[1].splice(idx,1); renderFx(); renderHands(); renderPlayedCards();
+    setStatus('🛡 AI 技能被你封印！'); return;
+  }
+  if(sid===4){
+    hands[1].splice(idx,1);
+    // AI prefers to bomb boxes where player has cells
+    const pb=[]; for(let b=0;b<9;b++) if(boxCells(b).some(i=>owner[i]===1)) pb.push(b);
+    const t=pb.length?pb[~~(Math.random()*pb.length)]:~~(Math.random()*9);
+    triggerExplosion(t,1); revealLastPlayed(1,4);
+    setStatus(`🔴 AI 炸彈！第${t+1}宮爆炸`); renderFx(); renderHands(); renderPlayedCards(); return;
+  }
+  applySkill(1,sid,idx,false);
+}
+
+// ── Bomb overlays ──
+function renderBombOverlays(){
+  document.querySelectorAll('.box-ov').forEach(e=>e.remove());
+  if(!targeting)return;
+  const grid=document.getElementById('sudoku-grid');
+  for(let br=0;br<3;br++) for(let bc=0;bc<3;bc++){
+    const bi=br*3+bc;
+    const anchor=document.querySelector(`.cell[data-idx="${br*27+bc*3}"]`);
+    if(!anchor)continue;
+    const gr=grid.getBoundingClientRect(),cr=anchor.getBoundingClientRect();
+    const ov=document.createElement('div'); ov.className='box-ov'; ov.textContent='💥';
+    ov.style.cssText=`position:absolute;left:${cr.left-gr.left}px;top:${cr.top-gr.top}px;width:${cr.width*3}px;height:${cr.height*3}px;`;
+    ov.addEventListener('click',()=>{
+      const {handIdx}=targeting; targeting=null;
+      hands[0].splice(handIdx,1);
+      document.querySelectorAll('.box-ov').forEach(e=>e.remove());
+      triggerExplosion(bi,0); revealLastPlayed(0,4);
+      renderHands(); renderFx(); renderPlayedCards();
+      setStatus(`💥 第${bi+1}宮爆炸！`);
+    });
+    grid.appendChild(ov);
+  }
+}
+
+// ── Explosion ──
+function cellBox(i){ return ~~(~~(i/9)/3)*3+~~((i%9)/3); }
+function boxCells(b){ const br=~~(b/3),bc=b%3,r=[]; for(let dr=0;dr<3;dr++)for(let dc=0;dc<3;dc++)r.push((br*3+dr)*9+(bc*3+dc)); return r; }
+
+function triggerExplosion(boxIdx, attackerSide){
+  const enemySide = attackerSide===0 ? 2 : 1;
+  const cells=boxCells(boxIdx);
+  cells.forEach(i=>{
+    const el=getCellEl(i); if(!el)return;
+    el.classList.add('bombed');
+    if(puzzle[i]===0&&owner[i]===enemySide){ owner[i]=0; updateCell(i); }
+  });
+  cells.forEach(i=>{ const el=getCellEl(i); if(el){el.classList.remove('explode');void el.offsetWidth;el.classList.add('explode');} });
+  calcScores();
+  if(bombT[boxIdx])clearTimeout(bombT[boxIdx]);
+  bombBoxes.add(boxIdx);
+  bombT[boxIdx]=setTimeout(()=>{ cells.forEach(i=>{const el=getCellEl(i);if(el)el.classList.remove('bombed','explode');});bombBoxes.delete(boxIdx);delete bombT[boxIdx]; },30000);
+}
+
+function remapBoard(pIdx){
+  const mySide=pIdx===0?1:2, enSide=pIdx===0?2:1;
+  const myN=owner.filter((o,i)=>puzzle[i]===0&&o===mySide).length;
+  const enN=owner.filter((o,i)=>puzzle[i]===0&&o===enSide).length;
+  for(let i=0;i<81;i++) if(puzzle[i]===0) owner[i]=0;
+  bombBoxes.forEach(b=>{ clearTimeout(bombT[b]); boxCells(b).forEach(i=>{const el=getCellEl(i);if(el)el.classList.remove('bombed','explode');}); });
+  bombBoxes=new Set(); bombT={};
+  let emp=[]; for(let i=0;i<81;i++) if(puzzle[i]===0) emp.push(i); shuffle(emp);
+  for(let i=0;i<myN;i++) owner[emp[i]]=mySide;
+  for(let i=0;i<enN;i++) owner[emp[myN+i]]=enSide;
+  for(let i=0;i<81;i++) updateCell(i); calcScores();
+  aiEmptyCells=[]; for(let i=0;i<81;i++) if(puzzle[i]===0&&owner[i]===0) aiEmptyCells.push(i); shuffle(aiEmptyCells);
+}
+
+// ══════════════════════════════════════════
+// BATTLE SYSTEM
+// ══════════════════════════════════════════
+function buildBattle(){
+  soldiers=[];
+  for(let br=0;br<3;br++) for(let bc=0;bc<3;bc++){
+    let p=0,a=0;
+    for(let dr=0;dr<3;dr++) for(let dc=0;dc<3;dc++){
+      const idx=(br*3+dr)*9+(bc*3+dc);
+      if(owner[idx]===1) p+=val(idx);
+      else if(owner[idx]===2) a+=val(idx);
+      else if(puzzle[idx]!==0){p+=val(idx);a+=val(idx);} // shared given counts both
+    }
+    let side, power;
+    if(p>a){side='p';power=p-a;}
+    else if(a>p){side='a';power=a-p;}
+    else{side='draw';power=0;}
+    soldiers.push({p,a,side,power:Math.max(p,a,1),rawP:p,rawA:a,alive:side!=='draw',regionId:br*3+bc});
+  }
+  document.getElementById('final-p-score').textContent=playerScore;
+  document.getElementById('final-a-score').textContent=aiScore;
+  roundNum=0; battleDone=false;
+  document.getElementById('next-btn').style.display='inline-block';
+  document.getElementById('combat-log').innerHTML='';
+  renderRegions();
+
+  // Round 0: internal region result
+  addRoundHeader('初始結算：各區域內部勝負');
+  soldiers.forEach(s=>{
+    const rn=REGION_NAMES[s.regionId], rl=REGION_LABELS[s.regionId];
+    if(s.side==='p') addLog(`區域${rn}【${rl}】：<span class='lb'>玩家勝</span>（${s.rawP} vs ${s.rawA}），戰力 ${s.power}`);
+    else if(s.side==='a') addLog(`區域${rn}【${rl}】：<span class='lr'>AI 勝</span>（${s.rawA} vs ${s.rawP}），戰力 ${s.power}`);
+    else addLog(`區域${rn}【${rl}】：<span class='lm'>平局消除</span>（${s.rawP} vs ${s.rawA}）`);
+  });
+  renderRegions();
+}
+
+// Neighbours (up/down/left/right only)
+function nextRound(){
+  if(battleDone)return;
+  roundNum++;
+  const alive=soldiers.filter(s=>s.alive);
+  if(alive.length<=1){declareWinner();return;}
+
+  addRoundHeader(`第 ${roundNum} 回合`);
+
+  // ── 配對系統：重複審查直到所有人都配到，或只剩奇數一個 ──
+  // 每輪從未配對的人中隨機兩兩配對，不限距離，重複直到無法再配
+  const paired=new Set();
+  const battles=[];
+
+  // 第一輪：優先就近配對（上下左右延伸跳過空格）
+  const order=shuffle([...alive.map(s=>s.regionId)]);
+  order.forEach(rid=>{
+    if(paired.has(rid))return;
+    // 四方向延伸，跳過已消除，找第一個存活且未配對的
+    const r=Math.floor(rid/3), c=rid%3;
+    const nearby=[];
+    [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr,dc])=>{
+      let nr=r+dr, nc=c+dc;
+      while(nr>=0&&nr<3&&nc>=0&&nc<3){
+        const nid=nr*3+nc;
+        if(soldiers[nid].alive&&!paired.has(nid)){ nearby.push(nid); break; }
+        nr+=dr; nc+=dc;
+      }
+    });
+    if(nearby.length===0)return;
+    const targetRid=nearby[Math.floor(Math.random()*nearby.length)];
+    paired.add(rid); paired.add(targetRid);
+    battles.push([rid,targetRid]);
+  });
+
+  // 重複審查：若仍有 ≥2 個未配對，強制任意配對，直到剩下 ≤1 個
+  let pass=0;
+  while(pass<10){
+    const remaining=alive.filter(s=>!paired.has(s.regionId));
+    if(remaining.length<=1)break;
+    // 打亂後兩兩強制配對
+    shuffle(remaining);
+    for(let i=0;i+1<remaining.length;i+=2){
+      const aRid=remaining[i].regionId, bRid=remaining[i+1].regionId;
+      paired.add(aRid); paired.add(bRid);
+      battles.push([aRid,bRid]);
+      addLog(`<span class='lm'>（跨區強制配對：${REGION_NAMES[aRid]} ↔ ${REGION_NAMES[bRid]}）</span>`);
+    }
+    pass++;
+  }
+
+  // 最多只剩一個閒置（奇數情況）
+  const unpaired=alive.filter(s=>!paired.has(s.regionId));
+
+  // Resolve battles
+  battles.forEach(([aRid,bRid])=>{
+    const A=soldiers[aRid], B=soldiers[bRid];
+    const An=REGION_NAMES[aRid], Bn=REGION_NAMES[bRid];
+    const Ac=A.side==='p'?'lb':'lr', Bc=B.side==='p'?'lb':'lr';
+    const Aname=`<span class='${Ac}'>${A.side==='p'?'藍':'紅'}${An}</span>`;
+    const Bname=`<span class='${Bc}'>${B.side==='p'?'藍':'紅'}${Bn}</span>`;
+
+    if(A.side===B.side){
+      // Same side: winner absorbs ×1.2
+      const gain=Math.round(B.power*1.2);
+      A.power+=gain; B.alive=false; B.side='dead';
+      addLog(`${Aname}（${A.power-gain}）吞噬友軍${Bname}（${B.power}），獲得 <span class='lg'>${gain}</span> 戰力，現為 ${A.power}`);
+    } else {
+      if(A.power>B.power){
+        const gain=B.power; A.power+=gain; B.alive=false; B.side='dead';
+        addLog(`${Aname}（${A.power-gain}）擊敗${Bname}（${gain}），吞噬後戰力 <span class='lg'>${A.power}</span>`);
+      } else if(B.power>A.power){
+        const gain=A.power; B.power+=gain; A.alive=false; A.side='dead';
+        addLog(`${Bname}（${B.power-gain}）擊敗${Aname}（${gain}），吞噬後戰力 <span class='lg'>${B.power}</span>`);
+      } else {
+        // Draw: both eliminated
+        A.alive=false; A.side='dead'; B.alive=false; B.side='dead';
+        addLog(`${Aname}（${A.power}）與${Bname}（${B.power}）<span class='lm'>平局，雙方消除</span>`);
+      }
+    }
+  });
+
+  // Unpaired: ×1.5 next round
+  unpaired.forEach(s=>{
+    const old=s.power;
+    s.power=Math.round(s.power*1.5);
+    const sn=REGION_NAMES[s.regionId], sc=s.side==='p'?'lb':'lr';
+    addLog(`<span class='${sc}'>${s.side==='p'?'藍':'紅'}${sn}</span> 無對手，停滯蓄力 ×1.5：${old} → <span class='lg'>${s.power}</span>`);
+  });
+
+  renderRegions();
+  checkBattleEnd();
+}
+
+function checkBattleEnd(){
+  const alive=soldiers.filter(s=>s.alive);
+  if(alive.length<=1){ declareWinner(); return; }
+  const pA=alive.some(s=>s.side==='p'), aA=alive.some(s=>s.side==='a');
+  if(!pA||!aA) declareWinner();
+}
+
+function declareWinner(){
+  if(battleDone)return; battleDone=true;
+  document.getElementById('next-btn').style.display='none';
+  const alive=soldiers.filter(s=>s.alive);
+  const pTotal=alive.filter(s=>s.side==='p').reduce((sum,s)=>sum+s.power,0);
+  const aTotal=alive.filter(s=>s.side==='a').reduce((sum,s)=>sum+s.power,0);
+  addRoundHeader('═ 戰鬥結束 ═');
+  addLog(`存活士兵：藍方 ${alive.filter(s=>s.side==='p').length} 個，紅方 ${alive.filter(s=>s.side==='a').length} 個`);
+  addLog(`總戰力：<span class='lb'>玩家 ${pTotal}</span> vs <span class='lr'>AI ${aTotal}</span>`);
+  setTimeout(()=>{
+    document.getElementById('res-p').textContent=pTotal;
+    document.getElementById('res-a').textContent=aTotal;
+    const title=document.getElementById('result-title'), sub=document.getElementById('result-sub');
+    if(pTotal>aTotal){ title.textContent='勝利'; title.className='result-title win'; sub.textContent=`玩家 ${pTotal} vs AI ${aTotal}`; }
+    else if(aTotal>pTotal){ title.textContent='落敗'; title.className='result-title lose'; sub.textContent=`AI ${aTotal} vs 玩家 ${pTotal}`; }
+    else{ title.textContent='平局'; title.className='result-title draw'; sub.textContent='勢均力敵'; }
+    show('result');
+  },1500);
+}
+
+function autoFinish(){
+  let s=0;
+  const run=()=>{
+    if(battleDone||s++>60)return;
+    const alive=soldiers.filter(x=>x.alive);
+    if(alive.length<=1){declareWinner();return;}
+    const pA=alive.some(x=>x.side==='p'),aA=alive.some(x=>x.side==='a');
+    if(!pA||!aA){declareWinner();return;}
+    nextRound(); setTimeout(run,60);
+  };
+  run();
+}
+
+// ══════════════════════════════════════════
+// LOG HELPERS
+// ══════════════════════════════════════════
+function addRoundHeader(txt){
+  const log=document.getElementById('combat-log');
+  const d=document.createElement('div'); d.className='log-round'; d.textContent=txt;
+  log.appendChild(d); log.scrollTop=log.scrollHeight;
+}
+function addLog(html){
+  const log=document.getElementById('combat-log');
+  const d=document.createElement('div'); d.className='log-entry'; d.innerHTML=html;
+  log.appendChild(d); log.scrollTop=log.scrollHeight;
+}
+
+// ══════════════════════════════════════════
+// RENDER REGIONS
+// ══════════════════════════════════════════
+function renderRegions(){
+  const grid=document.getElementById('regions-grid'); grid.innerHTML='';
+  soldiers.forEach((s,i)=>{
+    const card=document.createElement('div');
+    card.className='region-card'+(s.alive&&s.side==='p'?' blue-won':s.alive&&s.side==='a'?' red-won':s.alive?'':' dead');
+    card.id='region-'+i;
+    const ownerLabel=s.alive?(s.side==='p'?`<div class='region-owner blue-own'>藍方</div>`:`<div class='region-owner red-own'>紅方</div>`):`<div class='region-owner lm' style='color:var(--muted)'>消除</div>`;
+    card.innerHTML=`
+      <div class="region-num">${REGION_NAMES[i]}</div>
+      <div class="region-title">${REGION_LABELS[i]}</div>
+      <div class="soldier-row">
+        <div class="soldier blue-s ${s.side!=='p'||!s.alive?'gone':''}">${s.rawP}</div>
+        <div class="vs-text">:</div>
+        <div class="soldier red-s ${s.side!=='a'||!s.alive?'gone':''}">${s.rawA}</div>
+      </div>
+      ${s.alive?`<div style="font-size:11px;color:var(--gold);margin-top:3px">⚔ ${s.power}</div>`:''}
+      ${ownerLabel}`;
+    grid.appendChild(card);
+  });
+}
+</script>
+</body>
+</html>
